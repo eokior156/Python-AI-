@@ -1,4 +1,5 @@
 import streamlit as st
+import re
 
 # --- 1. 資料庫 ---
 RECIPE_DB = {
@@ -49,10 +50,8 @@ RECIPE_DB = {
                        "ingredients": {"麵粉": 100, "水": 55, "糖": 15, "酵母": 2, "鹽": 1.5, "奶油": 10},
                        "process": {"烤箱": "180°C", "發酵": "60+40分", "溫度": "28°C", "濕度": "75%"},
                        "steps": ["攪拌", "包餡", "表面裝飾", "最後發酵", "烘烤"]}
-    
 }
 
-# --- 擴充後的分類規則  ---
 CATEGORY_RULES = {
     "歐式": {"水": [65, 80], "糖": [0, 5], "奶油": [0, 5], "發酵建議": "溫度24°C, 濕度70%"},
     "軟式": {"水": [60, 75], "糖": [10, 20], "奶油": [5, 15], "發酵建議": "溫度28°C, 濕度75%"},
@@ -62,36 +61,30 @@ CATEGORY_RULES = {
     "英式": {"水": [55, 70], "糖": [5, 10], "奶油": [5, 15], "發酵建議": "溫度26°C, 濕度70%"},
     "義式": {"水": [60, 70], "糖": [0, 5], "奶油": [2, 10], "發酵建議": "溫度26°C, 濕度70%"},
     "美式": {"水": [50, 65], "糖": [15, 25], "奶油": [10, 25], "發酵建議": "溫度28°C, 濕度75%"},
-
-    # --- 新增的專業分類 ---
     "裸麥/全麥": {"水": [75, 90], "糖": [0, 5], "奶油": [0, 5], "發酵建議": "溫度23°C, 濕度65%"},
     "高油糖(布里歐)": {"水": [30, 50], "糖": [15, 30], "奶油": [20, 50], "發酵建議": "溫度26°C, 濕度70%"},
     "天然酵母": {"水": [70, 85], "糖": [0, 5], "奶油": [0, 5], "發酵建議": "溫度22°C, 濕度70%"},
     "台式甜麵包": {"水": [50, 60], "糖": [15, 20], "奶油": [10, 15], "發酵建議": "溫度28°C, 濕度75%"}
 }
-# --- 2. 輔助功能：解析文字 ---
-def parse_ingredients(text):
-    data = {}
-    lines = text.strip().split('\n')
-    for line in lines:
-        if not line.strip(): continue
 
-        # 尋找文字名稱 (去除冒號等符號)
-        name_match = re.match(r"([^0-9:：]+)", line)
-        # 尋找數字 (支援小數點)
-        val_match = re.search(r"(\d+\.?\d*)", line)
 
-        if name_match and val_match:
-            name = name_match.group(1).strip().replace(":", "").replace("：", "")
-            value = float(val_match.group(1))
-            data[name] = value
-    return data
+# --- 2. 專業計算函式 (核心邏輯) ---
+def calculate_scaled_ingredient(name, base_qty, multiplier):
+    """計算調整後的材料重量，加入專業酵母縮放邏輯"""
+    scaled_qty = base_qty * multiplier
+
+    # 商業烘焙邏輯：大量生產時縮減酵母比例
+    if "酵母" in name and multiplier > 50:
+        scaled_qty = scaled_qty * 0.9  # 減少 10% 酵母
+
+    return scaled_qty
+
+
 # --- 3. 介面與主邏輯 ---
 st.set_page_config(page_title="烘焙管理系統", layout="wide")
-st.title(" 專業烘焙管理系統")
+st.title("🍞 專業烘焙管理系統")
 menu = st.sidebar.selectbox("模式選擇", ["標準配方查詢", "網路食譜診斷"])
 
-# 模式 A: 標準配方查詢
 if menu == "標準配方查詢":
     st.header("標準配方查詢")
     options = {v['name']: k for k, v in RECIPE_DB.items()}
@@ -102,32 +95,37 @@ if menu == "標準配方查詢":
         item = RECIPE_DB[options[choice]]
         st.subheader(f"{item['name']} (x{qty})")
 
+        # 顯示警示
+        if qty > 50:
+            st.warning("⚠️ 檢測到大量生產 (大於 50 份)：系統已自動啟動專業酵母比例縮減機制，以確保發酵品質。")
+
         # 顯示環境參數
-        st.write("###  環境參數")
+        st.write("### 🌡️ 環境參數")
         cols = st.columns(4)
         for i, (k, v) in enumerate(item["process"].items()):
             cols[i].metric(k, v)
 
         col1, col2 = st.columns(2)
         with col1:
-            st.write("###  材料清單")
+            st.write("### ⚖️ 材料清單")
             for ing, b_qty in item["ingredients"].items():
-                st.write(f"- **{ing}**: {b_qty * qty:.1f}g")
+                # 使用新邏輯計算
+                final_qty = calculate_scaled_ingredient(ing, b_qty, qty)
+                adjustment_tag = " (已自動修正)" if ("酵母" in ing and qty > 50) else ""
+                st.write(f"- **{ing}**: {final_qty:.1f}g {adjustment_tag}")
         with col2:
-            st.write("###  製作步驟")
+            st.write("### 📝 製作步驟")
             for i, step in enumerate(item["steps"], 1):
                 st.write(f"{i}. {step}")
 
-# 模式 B: 網路食譜診斷
 elif menu == "網路食譜診斷":
     st.header("網路食譜診斷")
     cat = st.selectbox("選擇類別", list(CATEGORY_RULES.keys()))
     raw_input = st.text_area("輸入材料與重量 (例如: 麵粉 500\n水 350g\n雞蛋 1顆)", height=150)
 
     if st.button("開始診斷"):
-
         advice = CATEGORY_RULES[cat].get("發酵建議", "暫無建議")
-        st.info(f" 本類別環境參考: {advice}")
+        st.info(f"💡 本類別環境參考: {advice}")
 
         lines = raw_input.strip().split('\n')
         data = {}
@@ -135,7 +133,6 @@ elif menu == "網路食譜診斷":
             if line and len(line.split()) >= 2:
                 parts = line.split()
                 name = parts[0]
-                # 彈性數字提取
                 val_str = ''.join(c for c in parts[1] if c.isdigit() or c == '.')
                 try:
                     val = float(val_str)
@@ -149,7 +146,6 @@ elif menu == "網路食譜診斷":
             for ing, w in data.items():
                 if ing == "麵粉": continue
                 pct = (w / flour) * 100
-                # 檢查與規則對比
                 rule = CATEGORY_RULES[cat].get(ing)
                 status = "✓"
                 if rule:
@@ -158,4 +154,4 @@ elif menu == "網路食譜診斷":
                 st.write(
                     f"{status} **{ing}**: {pct:.1f}% {'(參考: ' + str(rule[0]) + '-' + str(rule[1]) + '%)' if rule else ''}")
         else:
-            st.error("請輸入「麵粉」作為計算基準")
+            st.error("請務必輸入「麵粉」作為計算基準")
