@@ -88,7 +88,7 @@ def calculate_scaled_ingredient(ing_name, percentage, base_flour, multiplier):
 
 # --- 3. 介面與主邏輯 ---
 st.set_page_config(page_title="烘焙管理系統", layout="wide")
-st.title("🍞 專業烘焙管理系統")
+st.title(" 專業烘焙管理系統")
 menu = st.sidebar.selectbox("模式選擇", ["標準配方查詢", "網路食譜診斷"])
 
 if menu == "標準配方查詢":
@@ -109,20 +109,20 @@ if menu == "標準配方查詢":
             st.warning("⚠️ 檢測到大量生產：系統已自動啟動酵母比例縮減機制。")
 
         # 顯示環境參數
-        st.write("### 🌡️ 環境參數")
+        st.write("### 環境參數")
         cols = st.columns(4)
         for i, (k, v) in enumerate(item["process"].items()):
             cols[i].metric(k, v)
 
         # 顯示材料清單
-        with st.expander("⚖️ 材料清單", expanded=True):
+        with st.expander(" 材料清單", expanded=True):
             for ing, pct in item["ingredients"].items():
                 final_qty = calculate_scaled_ingredient(ing, pct, base_flour, qty)
                 adjustment_tag = " (已自動修正)" if ("酵母" in ing and qty > 50) else ""
                 st.write(f"- **{ing}**: {final_qty:.1f}g {adjustment_tag}")
 
         # 顯示步驟
-        with st.expander("📝 製作步驟"):
+        with st.expander(" 製作步驟"):
             for i, step in enumerate(item["steps"], 1):
                 st.write(f"{i}. {step}")
 
@@ -133,7 +133,7 @@ elif menu == "網路食譜診斷":
 
     if st.button("開始診斷"):
         advice = CATEGORY_RULES[cat].get("發酵建議", "暫無建議")
-        st.info(f"💡 本類別環境參考: {advice}")
+        st.info(f" 本類別環境參考: {advice}")
 
         lines = raw_input.strip().split('\n')
         data = {}
@@ -155,7 +155,7 @@ elif menu == "網路食譜診斷":
                 if ing == "麵粉": continue
                 pct = (w / flour) * 100
                 rule = CATEGORY_RULES[cat].get(ing)
-                status = "✅"
+                status = "✔"
                 if rule:
                     if pct < rule[0] or pct > rule[1]:
                         status = "⚠️"
